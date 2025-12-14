@@ -1,54 +1,163 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
-import type { User } from "@supabase/supabase-js";
-import SignupForm from "./components/SignupForm";
-import { auth } from "./utils/api";
-import { currentUser } from "./utils/supabase";
+import {
+	type ColumnDef,
+	flexRender,
+	getCoreRowModel,
+	useReactTable,
+} from "@tanstack/react-table";
+import Authentication from "./components/Authentication";
+import NewCardForm from "./components/NewCardForm";
+import { useUserStore } from "./store/useUserStore";
+import { auth, cards, profiles } from "./utils/api";
+import type { CardRow } from "./utils/types";
 
-export type TokenType = {
-	access_token: string;
-	expires_in: number;
-	expires_at: number;
-	refresh_token: string;
-	user: User;
-};
-
-// import NewCardForm from "./components/NewCardForm";
-function checkToken(token: TokenType) {
-	try {
-		const timeStamp_in_miliseconds = token.expires_at * 1000;
-		const current_time = Date.now();
-		const time_remaining = timeStamp_in_miliseconds - current_time;
-		return { valid: time_remaining > 1000, timeRemaining: time_remaining };
-	} catch {
-		return { valid: false, timeRemaining: undefined };
-	}
-}
 function App() {
-	const [user, setUser] = useState<User | null>();
-	let userName: string = "Unknown User";
-	const token: TokenType = currentUser ? JSON.parse(currentUser) : undefined;
-	if (token && !checkToken(token).valid) {
-		localStorage.clear();
-		setUser(null);
-	} else if (token !== undefined && !user) {
-		setUser(token.user);
-	}
-	if (user) {
-		userName = user.user_metadata?.username;
-	}
+	const { userName } = useUserStore((state) => state);
+	const [cardList, setCardList] = useState<Array<CardRow> | undefined>();
+	const [showNewCardForm, setShowNewCardForm] = useState<boolean>(false);
+	const [userList, setUserList] = useState<
+		Array<{ id: string; username: string | null }> | undefined
+	>();
+
+	useEffect(() => {
+		cards
+			.getAll()
+			.then((response) => {
+				setCardList(response);
+			})
+			.catch((error: unknown) => console.log(error));
+		profiles.getAllUserByID().then((response) => setUserList(response));
+	}, []);
+
+	const cardColumns: ColumnDef<CardRow>[] = [
+		{
+			accessorKey: "name",
+			header: "Name",
+			cell: (info) => info.getValue(),
+		},
+		{
+			accessorKey: "id",
+			header: "Card ID",
+			cell: (info) => info.getValue(),
+		},
+		{
+			accessorKey: "version",
+			header: "Version",
+			cell: (info) => info.getValue(),
+		},
+		{
+			accessorKey: "ad",
+			header: "AD",
+			cell: (info) => info.getValue(),
+		},
+		{
+			accessorKey: "cost",
+			header: "Cost",
+			cell: (info) => info.getValue(),
+		},
+		{
+			accessorKey: "damage",
+			header: "Damage",
+			cell: (info) => info.getValue(),
+		},
+		{
+			accessorKey: "damage_modifier",
+			header: "Damage Modifier",
+			cell: (info) => info.getValue(),
+		},
+		{
+			accessorKey: "description",
+			header: "Description",
+			cell: (info) => info.getValue(),
+		},
+		{
+			accessorKey: "card_draw",
+			header: "Card Draw",
+			cell: (info) => info.getValue(),
+		},
+		{
+			accessorKey: "template",
+			header: "Template",
+			cell: (info) => info.getValue(),
+		},
+		{
+			accessorKey: "tier",
+			header: "Tier",
+			cell: (info) => info.getValue(),
+		},
+		{
+			accessorKey: "created_at",
+			header: "Date Created",
+			cell: (info) => {
+				const date = new Date(info.getValue() as string);
+				return date.toLocaleDateString();
+			},
+		},
+		{
+			accessorKey: "created_by",
+			header: "Created By",
+			cell: (info) => {
+				const id = info.getValue();
+				const userName: { id: string; username: string | null } | undefined =
+					userList?.find((user) => user.id === id);
+				return userName?.username ?? "N/A";
+			},
+		},
+	];
+	const table = useReactTable({
+		columns: cardColumns,
+		data: cardList !== undefined ? cardList : [],
+		getCoreRowModel: getCoreRowModel(),
+	});
 	return (
 		<>
 			<h1>Card Tracker</h1>
-			{!user && <SignupForm setUser={setUser} />}
-			{user && (
+			<Authentication>
 				<div>
 					<h2>Welcome, {userName || "Unknown User"}</h2>
-					<button type="button" onClick={() => auth.signOut(setUser)}>
+					<button type="button" onClick={() => auth.signOut()}>
 						Logout
 					</button>
+					<button
+						type="button"
+						onClick={() => setShowNewCardForm(!showNewCardForm)}
+					>
+						{showNewCardForm ? "Hide New Card Form" : "Add New Card"}
+					</button>
+					{showNewCardForm && <NewCardForm />}
+					<table>
+						<thead>
+							{table.getHeaderGroups().map((headerGroup) => (
+								<tr key={headerGroup.id}>
+									{headerGroup.headers.map((header) => (
+										<th key={header.id}>
+											{flexRender(
+												header.column.columnDef.header,
+												header.getContext(),
+											)}
+										</th>
+									))}
+								</tr>
+							))}
+						</thead>
+						<tbody>
+							{table.getRowModel().rows.map((row) => (
+								<tr key={row.id}>
+									{row.getVisibleCells().map((cell) => (
+										<td key={cell.id}>
+											{flexRender(
+												cell.column.columnDef.cell,
+												cell.getContext(),
+											)}
+										</td>
+									))}
+								</tr>
+							))}
+						</tbody>
+					</table>
 				</div>
-			)}
+			</Authentication>
 		</>
 	);
 }

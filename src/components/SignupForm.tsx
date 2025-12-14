@@ -1,17 +1,12 @@
-import type { User } from "@supabase/supabase-js";
 import { useState } from "react";
 import { FieldError, Input, Label, TextField } from "react-aria-components";
 import { Controller, type SubmitHandler, useForm } from "react-hook-form";
 import { auth } from "../utils/api";
-import supabase from "../utils/supabase";
 import { PasswordField, validatePassword } from "./PasswordField";
 
-export default function SignupForm(props: {
-	setUser: (data: User | null) => void;
-}) {
+export default function SignupForm() {
 	const [password, setPassword] = useState("");
 	const [showSignUp, setShowSignUp] = useState(false);
-
 	let passwordErrors: Array<string> = [];
 
 	type SignUpInputs = SignInInputs & {
@@ -48,31 +43,18 @@ export default function SignupForm(props: {
 	);
 
 	async function signUp(formData: SignUpInputs) {
-		const data = await supabase.auth.signUp({
+		await auth.signUp({
 			email: formData.email,
 			password: formData.password,
-			options: {
-				data: {
-					username: formData.username,
-				},
-			},
+			username: formData.username as string,
 		});
-		if (data.error) {
-			console.log(data.error);
-		} else {
-			const userData = data.data.user;
-			props.setUser(userData);
-		}
 	}
 
-	async function signIn(formData: SignInInputs) {
-		const data = await auth.signIn({
+	function signIn(formData: SignInInputs) {
+		auth.signIn({
 			email: formData.email,
 			password: formData.password,
 		});
-		if (data) {
-			props.setUser(data);
-		}
 	}
 
 	const onSubmit: SubmitHandler<SignUpInputs | SignInInputs> = (data) => {
